@@ -1,0 +1,63 @@
+<!doctype html><html lang="ru"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>СМО — вариант 4 · Первичные артефакты</title>
+<style>
+body{margin:0;background:#eef2f6;color:#18283a;font:17px/1.6 Arial,sans-serif}
+main{max-width:1400px;margin:auto;padding:32px}
+header,section{background:white;padding:28px;margin:0 0 24px;border-radius:12px;
+box-shadow:0 2px 12px #17283c0b}h1{line-height:1.2}h2{margin-top:0}
+a{color:#115c9f}nav{font-size:14px}img{max-width:100%;height:auto;border:1px solid #dde5ed}
+.code{padding:12px;background:#edf5fc;border-radius:6px;font-weight:bold}
+@media print{body{background:white}main{padding:0}section{break-before:page;box-shadow:none}}
+</style><main><header><h1>Сервис обработки аналитических заданий спортивных клубов</h1>
+<p>Первичные артефакты · Вариант 4<br>Добров М. Г. · группа 5130904/40106</p>
+<p class="code">ИБ · ИЗ2 · ПЗ1 · Д1ОЗ1 · Д1ОО4 · Д2П2 · Д2Б4 · ОР2 · ОД1</p>
+<p>Три клуба → приём → общий кольцевой буфер → выбор по приоритету клуба →
+свободный обработчик по кольцу → аналитический отчёт.</p>
+<p>Все заявки проходят через буфер. При переполнении вытесняется последняя старая
+ожидающая заявка. Среди заявок одного клуба выбирается последняя поступившая.</p>
+<p><a href="primary-artifacts.md">Подробное описание Markdown</a> ·
+<a href="review-checklist.md">Контрольные сценарии</a></p>
+<p>Нажмите на диаграмму, чтобы открыть масштабируемый SVG. Галерея работает локально.</p>
+<nav><a href="#sequence">Общий сиквенс</a> · <a href="#sequence-happy">HappyFlow: свободные буфер и прибор</a> · <a href="#sequence-overflow">Переполнение, вытеснение и последующая обработка</a> · <a href="#sequence-selection">Выбор заявки по приоритету и прибора по кольцу</a> · <a href="#classes">Диаграмма классов</a> · <a href="#flowchart">Блок-схема с дорожками</a> · <a href="#archimate">Бизнес-процесс ArchiMate 3.0</a></nav></header><section id="sequence"><h2>Общий сиквенс</h2>
+<p><a href="diagrams/sequence.puml">PlantUML</a> ·
+<a href="img/sequence.svg" target="_blank">Открыть SVG и увеличить</a> ·
+<a href="img/sequence.png" target="_blank">PNG</a></p>
+<a href="img/sequence.svg" target="_blank"><img src="img/sequence.svg"
+alt="Общий сиквенс" loading="lazy"></a></section>
+<section id="sequence-happy"><h2>HappyFlow: свободные буфер и прибор</h2>
+<p><a href="diagrams/sequence-happy.puml">PlantUML</a> ·
+<a href="img/sequence-happy.svg" target="_blank">Открыть SVG и увеличить</a> ·
+<a href="img/sequence-happy.png" target="_blank">PNG</a></p>
+<a href="img/sequence-happy.svg" target="_blank"><img src="img/sequence-happy.svg"
+alt="HappyFlow: свободные буфер и прибор" loading="lazy"></a></section>
+<section id="sequence-overflow"><h2>Переполнение, вытеснение и последующая обработка</h2>
+<p><a href="diagrams/sequence-overflow.puml">PlantUML</a> ·
+<a href="img/sequence-overflow.svg" target="_blank">Открыть SVG и увеличить</a> ·
+<a href="img/sequence-overflow.png" target="_blank">PNG</a></p>
+<a href="img/sequence-overflow.svg" target="_blank"><img src="img/sequence-overflow.svg"
+alt="Переполнение, вытеснение и последующая обработка" loading="lazy"></a></section>
+<section id="sequence-selection"><h2>Выбор заявки по приоритету и прибора по кольцу</h2>
+<p><a href="diagrams/sequence-selection.puml">PlantUML</a> ·
+<a href="img/sequence-selection.svg" target="_blank">Открыть SVG и увеличить</a> ·
+<a href="img/sequence-selection.png" target="_blank">PNG</a></p>
+<a href="img/sequence-selection.svg" target="_blank"><img src="img/sequence-selection.svg"
+alt="Выбор заявки по приоритету и прибора по кольцу" loading="lazy"></a></section>
+<section id="classes"><h2>Диаграмма классов</h2>
+<p><a href="diagrams/classes.puml">PlantUML</a> ·
+<a href="img/classes.svg" target="_blank">Открыть SVG и увеличить</a> ·
+<a href="img/classes.png" target="_blank">PNG</a></p>
+<a href="img/classes.svg" target="_blank"><img src="img/classes.svg"
+alt="Диаграмма классов" loading="lazy"></a></section>
+<section id="flowchart"><h2>Блок-схема с дорожками</h2>
+<p><a href="diagrams/flowchart.puml">PlantUML</a> ·
+<a href="img/flowchart.svg" target="_blank">Открыть SVG и увеличить</a> ·
+<a href="img/flowchart.png" target="_blank">PNG</a></p>
+<a href="img/flowchart.svg" target="_blank"><img src="img/flowchart.svg"
+alt="Блок-схема с дорожками" loading="lazy"></a></section>
+<section id="archimate"><h2>Бизнес-процесс ArchiMate 3.0</h2>
+<p><a href="diagrams/archimate.puml">PlantUML</a> ·
+<a href="img/archimate.svg" target="_blank">Открыть SVG и увеличить</a> ·
+<a href="img/archimate.png" target="_blank">PNG</a></p>
+<a href="img/archimate.svg" target="_blank"><img src="img/archimate.svg"
+alt="Бизнес-процесс ArchiMate 3.0" loading="lazy"></a></section></main></html>

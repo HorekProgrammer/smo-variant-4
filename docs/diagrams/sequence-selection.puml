@@ -1,0 +1,56 @@
+@startuml
+title Вариант 4. Д2Б4 и Д2П2 — приоритет и кольцевой выбор
+hide footbox
+skinparam defaultFontName Arial
+skinparam maxMessageSize 65
+control "Simulation" as Sim
+control "SelectionDispatcher" as Sel
+queue "RingBuffer (K=4)" as Buf
+participant "DevicePool (M=3)" as Pool
+participant "Device П1" as Dev
+collections "EventCalendar" as Cal
+entity "Statistics" as Stat
+note over Sim, Stat
+Синтетический снимок для изолированной проверки dispatch(t):
+П1 и П3 свободны, П2 занят; УП=2.
+Буфер: [2.1(order=1), 1.1(order=2), 3.1(order=3), 1.2(order=4)]; УБ=1.
+Тестовый вызов: Simulation запускает dispatch(t) на заданном снимке.
+Это не устойчивое состояние обычного прогона: при очереди свободных приборов не остаётся.
+В обычном прогоне триггер — завершение приёма заявки либо освобождение прибора.
+end note
+Sim -> Sel: dispatch(t)
+Sel -> Buf: isEmpty()
+Buf --> Sel: false
+Sel -> Pool: findFreeByRing()
+Pool -> Pool: Д2П2: П2 занят; П3 свободен\nнайти П3; УП пока равен 2
+Pool --> Sel: П3
+Sel -> Buf: popHighestPriority()
+Buf -> Buf: Д2Б4: И1 имеет высший приоритет\nиз 1.1 и 1.2 выбрать последнюю 1.2\nосвободить слот 4; УБ прежний
+Buf --> Sel: q = 1.2
+Sel -> Pool: startOn(П3,1.2,t)
+ref over Pool: Device П3.begin(1.2,t): ПЗ1; markProcessing(t)
+Pool --> Sel: finishAt3; УП := 1
+Sel -> Stat: recordStarted(1.2,П3)
+Sel -> Cal: schedule(COMPLETE,П3,finishAt3)
+Cal --> Sel: добавлено
+== Следующая итерация в тот же момент t ==
+Sel -> Buf: isEmpty()
+Buf --> Sel: false
+Sel -> Pool: findFreeByRing()
+Pool --> Sel: П1 (поиск от УП=1)
+Sel -> Buf: popHighestPriority()
+Buf --> Sel: q = 1.1; слот 2 освобождён; УБ=1
+Sel -> Pool: startOn(П1,1.1,t)
+Pool -> Dev: begin(1.1,t)
+Dev --> Pool: finishAt1 по ПЗ1
+Pool --> Sel: finishAt1; УП := 2
+Sel -> Stat: recordStarted(1.1,П1)
+Sel -> Cal: schedule(COMPLETE,П1,finishAt1)
+Cal --> Sel: добавлено
+Sel -> Buf: isEmpty()
+Buf --> Sel: false
+Sel -> Pool: findFreeByRing()
+Pool --> Sel: null — все приборы заняты; УП=2
+Sel --> Sim: назначения завершены
+note over Buf, Pool: Итог: [2.1, пусто, 3.1, пусто]. По одной заявке за итерацию, без пакета.\nПри свободных П1 и П3 сначала выбран П3: кольцо имеет приоритет над номером прибора.
+@enduml

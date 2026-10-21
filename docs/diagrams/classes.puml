@@ -1,0 +1,219 @@
+@startuml
+!pragma layout smetana
+title Вариант 4. Классы модели сервиса аналитических заданий
+skinparam defaultFontName Arial
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+hide empty members
+
+package "Заявки и ресурсы" {
+ class Request {
+  - id: String
+  - sourceId: int
+  - payloadRef: String
+  - reportType: String
+  - status: RequestStatus
+  - generatedAt: double
+  - queuedAt: double
+  - queueOrder: long
+  - startedAt: double?
+  - exitedAt: double?
+  + source(): int
+  + order(): long
+  + markQueued(t: double, order: long): void
+  + markProcessing(t: double): void
+  + markCompleted(t: double): void
+  + markEvicted(t: double): void
+  + timings(): RequestTimes
+ }
+ enum RequestStatus {
+  CREATED
+  QUEUED
+  PROCESSING
+  COMPLETED
+  EVICTED
+ }
+ class Source {
+  - id: int
+  - a: double
+  - b: double
+  - generatedCount: long
+  - rng: Random
+  + generate(t: double): Request
+  + nextGenerationTime(t: double): double
+ }
+ class RingBuffer {
+  - slots: Request?[K]
+  - capacity: int
+  - bufferPointer: int
+  - sequence: long
+  + hasFreeSlot(): bool
+  + isEmpty(): bool
+  + insertByRing(q: Request, t: double): void
+  + replaceLatest(q: Request, t: double): Request
+  + popHighestPriority(): Request
+  + snapshot(): BufferState
+  - findFreeByRing(): int
+  - findLatestSlot(): int
+ }
+ class Device {
+  - id: int
+  - mu: double
+  - current: Request?
+  - finishAt: double?
+  - rng: Random
+  + isFree(): bool
+  + begin(q: Request, t: double): double
+  + complete(t: double): Request
+  + snapshot(): DeviceState
+ }
+ class DevicePool {
+  - devices: Device[M]
+  - devicePointer: int
+  + findFreeByRing(): int?
+  + startOn(j: int, q: Request, t: double): double
+  + complete(j: int, t: double): Request
+  + snapshot(): PoolState
+ }
+}
+
+package "Диспетчеризация" {
+ class PlacementDispatcher {
+  - buffer: RingBuffer
+  - stats: Statistics
+  + accept(q: Request, t: double): void
+ }
+ class SelectionDispatcher {
+  - buffer: RingBuffer
+  - pool: DevicePool
+  - calendar: EventCalendar
+  - stats: Statistics
+  + dispatch(t: double): void
+ }
+}
+
+package "Модельное время" {
+ class Simulation {
+  - now: double
+  - horizon: double
+  - sources: Source[3]
+  - buffer: RingBuffer
+  - pool: DevicePool
+  - placement: PlacementDispatcher
+  - selection: SelectionDispatcher
+  - calendar: EventCalendar
+  - stats: Statistics
+  + initialize(config: ModelConfig, seed: long): void
+  + step(): ModelState
+  + run(): RunMetrics
+  - onGeneration(i: int): void
+  - onComplete(j: int): void
+ }
+ class EventCalendar {
+  - events: PriorityQueue<Event>
+  - sequence: long
+  + schedule(type: EventType, entityId: int, time: double): void
+  + popNext(): Event
+  + peekTime(): double?
+  + snapshot(): Event[]
+ }
+ class Event {
+  - time: double
+  - type: EventType
+  - entityId: int
+  - sequence: long
+  + sortKey(): Tuple
+ }
+ enum EventType {
+  COMPLETE
+  GENERATION
+ }
+}
+
+package "Результаты и представление" {
+ class Statistics {
+  - generated: long[3]
+  - evicted: long[3]
+  - completed: long[3]
+  - waitCompleted: double[3]
+  - waitSquaredCompleted: double[3]
+  - serviceCompleted: double[3]
+  - serviceSquaredCompleted: double[3]
+  - stayCompleted: double[3]
+  - waitEvicted: double[3]
+  - serviceIntervals: Interval[][M]
+  + recordGenerated(q: Request): void
+  + recordEvicted(q: Request): void
+  + recordStarted(q: Request, j: int): void
+  + recordCompleted(q: Request, j: int): void
+  + snapshot(horizon: double): RunMetrics
+ }
+ class ExperimentRunner {
+  - simulation: Simulation
+  - confidence: double = 0.90
+  - relativeError: double = 0.10
+  + runSeries(configs: ModelConfig[], seeds: long[]): RunMetrics[]
+ }
+ class StepView {
+  - simulation: Simulation
+  + next(): void
+  + render(state: ModelState): void
+ }
+ class ChartView {
+  - runner: ExperimentRunner
+  + render(metrics: RunMetrics[]): void
+ }
+}
+
+Simulation "1" *-- "3" Source : sources
+Simulation "1" *-- "1" RingBuffer : buffer
+Simulation "1" *-- "1" DevicePool : pool
+Simulation "1" *-- "1" PlacementDispatcher : placement
+Simulation "1" *-- "1" SelectionDispatcher : selection
+Simulation "1" *-- "1" EventCalendar : calendar
+Simulation "1" *-- "1" Statistics : stats
+Source ..> Request : создаёт
+Request --> RequestStatus : status
+RingBuffer "1" o-- "0..K" Request : slots (ожидающие)
+DevicePool "1" *-- "1..M" Device : devices
+Device "1" --> "0..1" Request : current
+PlacementDispatcher --> RingBuffer : buffer
+PlacementDispatcher --> Statistics : stats
+SelectionDispatcher --> RingBuffer : buffer
+SelectionDispatcher --> DevicePool : pool
+SelectionDispatcher --> EventCalendar : calendar
+SelectionDispatcher --> Statistics : stats
+EventCalendar "1" *-- "0..*" Event : events
+Event --> EventType : type
+Statistics ..> Request : читает времена и источник
+ExperimentRunner --> Simulation : simulation
+StepView --> Simulation : simulation / ОД1
+ChartView --> ExperimentRunner : runner / ОР2
+
+note bottom of RingBuffer
+ Д1ОЗ1: поиск от УБ; после записи в s: УБ := s mod K + 1.
+ Д1ОО4: replaceLatest выбирает max(queueOrder) до вставки q.
+ Д2Б4: pop выбирает min(sourceId), затем max(queueOrder).
+ Удаление не сдвигает слоты и не изменяет УБ.
+end note
+note bottom of DevicePool
+ Д2П2: поиск от УП; поиск не меняет УП.
+ startOn изменяет УП := j mod M + 1 только после назначения.
+ ПЗ1: Device.begin возвращает t - ln(U)/mu_j, U из (0,1).
+end note
+note bottom of PlacementDispatcher
+ Триггер accept — GENERATION через Simulation.
+ Ссылок на приборы нет. Отказ victim учитывается здесь.
+end note
+note bottom of SelectionDispatcher
+ Триггер dispatch — после accept либо complete.
+ Цикл: есть заявка + свободный прибор -> одно назначение.
+ При занятости всех приборов сразу вернуть управление.
+end note
+legend bottom
+ ModelConfig, ModelState, BufferState, PoolState, DeviceState,
+ RunMetrics, RequestTimes, Interval и Tuple — структуры данных.
+ Random — генератор случайных чисел. Они не показаны отдельными классами.
+ Все объекты ресурсов принадлежат Simulation; диспетчеры хранят общие ссылки.
+endlegend
+@enduml

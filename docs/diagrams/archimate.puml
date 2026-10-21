@@ -1,0 +1,70 @@
+@startuml
+!pragma layout smetana
+!include <archimate/Archimate>
+title Вариант 4. ArchiMate 3.0 — сервис аналитики спортивных клубов
+left to right direction
+skinparam defaultFontName Arial
+skinparam nodesep 30
+skinparam ranksep 45
+
+Business_Actor(club, "Спортивный клуб")
+Business_Actor(operator, "Оператор сервиса")
+Business_Role(customer, "Заказчик аналитики")
+Business_Role(provider, "Поставщик аналитики")
+Business_Event(arrival, "Поступило задание")
+Business_Event(release, "Обработчик освободился")
+Business_Event(loss, "Ожидающее задание вытеснено")
+Business_Process(accept, "Принять задание\nв кольцевой буфер")
+Business_Process(evict, "При полном буфере\nзаменить последнюю\nожидающую заявку")
+Business_Process(select, "Назначить одно задание\nпо приоритету клуба\nсвободному обработчику")
+Business_Process(calculate, "Рассчитать показатели\nи сохранить отчёт")
+Business_Process(account, "Учесть результат\nи показатели сервиса")
+Business_Object(job, "Аналитическое задание")
+Business_Object(queue, "Ожидающие задания")
+Business_Object(report, "Аналитический отчёт")
+Business_Object(journal, "Журнал результатов")
+Business_Service(service, "Обработка аналитических\nзаданий спортивных клубов")
+
+Application_Component(client, "Клиентская система клуба\nSource: ИБ, ИЗ2")
+Application_Component(intake, "Модуль приёма / RingBuffer\nД1ОЗ1, Д1ОО4")
+Application_Component(scheduler, "Планировщик / DevicePool\nД2Б4, Д2П2")
+Application_Component(worker, "Серверный обработчик\nDevice: ПЗ1")
+Application_Component(metrics, "Модель и статистика\nОД1, ОР2")
+
+Rel_Assignment(club, customer, "выступает")
+Rel_Assignment(operator, provider, "выступает")
+Rel_Assignment(provider, accept, "отвечает")
+Rel_Assignment(provider, select, "отвечает")
+Rel_Assignment(provider, calculate, "отвечает")
+Rel_Triggering(arrival, accept, "новое задание")
+Rel_Triggering(accept, evict, "[буфер полон]")
+Rel_Triggering(evict, loss, "отказ старой заявке")
+Rel_Triggering(accept, select, "[есть место: после записи]")
+Rel_Triggering(evict, select, "после замены")
+Rel_Triggering(release, select, "повторить назначение")
+Rel_Triggering(select, calculate, "[есть свободный прибор]")
+Rel_Triggering(calculate, release, "обработка завершена")
+Rel_Triggering(calculate, account, "успех")
+Rel_Triggering(loss, account, "отказ")
+Rel_Access_r(accept, job, "читает")
+Rel_Access_rw(accept, queue, "размещает")
+Rel_Access_rw(evict, queue, "заменяет")
+Rel_Access_rw(select, queue, "выбирает одну")
+Rel_Access_w(calculate, report, "создаёт")
+Rel_Access_w(account, journal, "фиксирует")
+Rel_Realization(calculate, service, "реализует")
+Rel_Serving(service, customer, "предоставляет")
+Rel_Serving(client, accept, "передаёт задания")
+Rel_Serving(intake, accept, "поддерживает")
+Rel_Serving(intake, evict, "поддерживает")
+Rel_Serving(scheduler, select, "поддерживает")
+Rel_Serving(worker, calculate, "поддерживает")
+Rel_Serving(metrics, account, "поддерживает")
+
+legend bottom
+ Бизнес-слой: роли, события, процессы, объекты и услуга.
+ Прикладной слой: программные компоненты, поддерживающие процессы.
+ При занятых приборах задания остаются в буфере до события освобождения.
+ Диаграмма описывает бизнес-процесс; детали календаря — в сиквенсе и блок-схеме.
+endlegend
+@enduml

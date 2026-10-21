@@ -1,0 +1,62 @@
+@startuml
+title Вариант 4. HappyFlow — свободные буфер и прибор
+hide footbox
+skinparam defaultFontName Arial
+skinparam maxMessageSize 65
+control "Simulation" as Sim
+participant "Source И1" as Src
+control "PlacementDispatcher" as Put
+queue "RingBuffer" as Buf
+control "SelectionDispatcher" as Sel
+participant "DevicePool" as Pool
+participant "Device П1" as Dev
+collections "EventCalendar" as Cal
+entity "Statistics" as Stat
+note over Sim, Stat: Начало: буфер пуст; УБ = 1; все приборы свободны; УП = 1.\nТриггер: GENERATION(И1, t). ИБ, ИЗ2: независимая генерация, интервал Uniform(a1,b1).
+Sim -> Src: generate(t)
+Src --> Sim: q = 1.1
+Sim -> Stat: recordGenerated(q)
+Sim -> Src: nextGenerationTime(t)
+Src --> Sim: tNext
+Sim -> Cal: schedule(GENERATION, И1, tNext)
+Cal --> Sim: добавлено
+Sim -> Put: accept(q,t)
+Put -> Buf: hasFreeSlot()
+Buf --> Put: true
+Put -> Buf: insertByRing(q,t)
+Buf -> Buf: Д1ОЗ1: слот 1; markQueued(t,1)\nУБ := 1 mod K + 1
+Buf --> Put: размещено
+Put --> Sim: готово
+Sim -> Sel: dispatch(t)
+Sel -> Buf: isEmpty()
+Buf --> Sel: false
+Sel -> Pool: findFreeByRing()
+Pool --> Sel: П1 (Д2П2: поиск от УП = 1)
+Sel -> Buf: popHighestPriority()
+Buf --> Sel: q = 1.1; слот 1 свободен; УБ прежний
+note right of Buf: Д2Б4: минимальный номер источника;\nвнутри источника — последняя поступившая.
+Sel -> Pool: startOn(П1,q,t)
+Pool -> Dev: begin(q,t)
+Dev -> Dev: markProcessing(t)\nПЗ1: duration = -ln(U)/mu1
+Dev --> Pool: finishAt
+Pool -> Pool: УП := 1 mod M + 1
+Pool --> Sel: finishAt
+Sel -> Stat: recordStarted(q,П1)
+Sel -> Cal: schedule(COMPLETE,П1,finishAt)
+Cal --> Sel: добавлено
+Sel -> Buf: isEmpty()
+Buf --> Sel: true
+Sel --> Sim: назначение завершено
+note over Buf, Dev: Ожидание q в буфере равно нулю: запись и начало обслуживания происходят в момент t.
+note over Sim, Cal: В данном сценарии до finishAt нет других поступлений.\nСледующая генерация И1 уже запланирована и не зависит от обслуживания.
+== Календарь дошёл до finishAt ==
+Sim -> Pool: complete(П1,finishAt)
+Pool -> Dev: complete(finishAt)
+Dev --> Pool: q завершена; прибор свободен
+Pool --> Sim: q
+Sim -> Stat: recordCompleted(q,П1)
+Sim -> Sel: dispatch(finishAt)
+Sel -> Buf: isEmpty()
+Buf --> Sel: true
+Sel --> Sim: назначать нечего
+@enduml

@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+docs/img/word-parts/
+~$*.docx
+*.pdf
+*.docx

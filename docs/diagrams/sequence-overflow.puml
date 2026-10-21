@@ -1,0 +1,64 @@
+@startuml
+title Вариант 4. Переполнение, вытеснение и последующая обработка
+hide footbox
+skinparam defaultFontName Arial
+skinparam maxMessageSize 65
+control "Simulation" as Sim
+control "PlacementDispatcher" as Put
+queue "RingBuffer (K = 3)" as Buf
+control "SelectionDispatcher" as Sel
+participant "DevicePool (M = 2)" as Pool
+participant "Device П2" as Dev
+collections "EventCalendar" as Cal
+entity "Statistics" as Stat
+note over Sim, Stat
+Состояние перед событием: оба прибора заняты, УБ = 3, УП = 1.
+Слоты: [2.4(order=10), 1.7(order=12), 3.5(order=11)].
+Новая q = 3.6 поступает при GENERATION в t; её генерация учтена, следующая запланирована.
+end note
+Sim -> Put: accept(q=3.6,t)
+Put -> Buf: hasFreeSlot()
+Buf --> Put: false
+Put -> Buf: replaceLatest(q,t)
+Buf -> Buf: Д1ОО4: victim = 1.7 (max order=12)\nзаменить в слоте 2 на 3.6(order=13)\nУБ := 3
+Buf --> Put: victim = 1.7
+Put -> Put: victim.markEvicted(t)
+Put -> Stat: recordEvicted(1.7)
+note right of Stat: Отказ клубу И1.\nПриоритет не защищает от вытеснения.\nНовая заявка 3.6 остаётся в системе.
+Put --> Sim: готово
+Sim -> Sel: dispatch(t)
+Sel -> Buf: isEmpty()
+Buf --> Sel: false
+Sel -> Pool: findFreeByRing()
+Pool --> Sel: null — оба заняты
+Sel --> Sim: ожидание следующего события; УП прежний
+note over Sim, Cal: Диспетчер не блокирует генерацию и модельное время.\nДля данного численного примера между t и t2 нет других событий.\nВ общем случае календарь продолжает обрабатывать GENERATION.
+== Наступило COMPLETE(П2, t2), t2 > t ==
+Sim -> Pool: complete(П2,t2)
+Pool -> Dev: complete(t2)
+Dev --> Pool: qDone; П2 свободен
+Pool --> Sim: qDone
+Sim -> Stat: recordCompleted(qDone,П2)
+Sim -> Sel: dispatch(t2)
+Sel -> Buf: isEmpty()
+Buf --> Sel: false
+Sel -> Pool: findFreeByRing()
+Pool --> Sel: П2 (от УП=1: П1 занят, П2 свободен)
+Sel -> Buf: popHighestPriority()
+Buf -> Buf: Д2Б4: выбрать 2.4 (И2 выше И3)\nосвободить слот 1; УБ = 3
+Buf --> Sel: q = 2.4
+Sel -> Pool: startOn(П2,2.4,t2)
+Pool -> Dev: begin(2.4,t2)
+Dev --> Pool: finishAt = t2 + Exp(mu2)
+Pool -> Pool: Д2П2: УП := 1
+Pool --> Sel: finishAt
+Sel -> Stat: recordStarted(2.4,П2)
+Sel -> Cal: schedule(COMPLETE,П2,finishAt)
+Cal --> Sel: добавлено
+Sel -> Buf: isEmpty()
+Buf --> Sel: false
+Sel -> Pool: findFreeByRing()
+Pool --> Sel: null — оба заняты
+Sel --> Sim: назначения завершены
+note over Buf, Pool: Итог: [пусто, 3.6, 3.5], УБ=3; 2.4 на П2; УП=1.\nВытеснена именно последняя старая заявка, а не новая и не обязательно слот под УБ.
+@enduml

@@ -1,0 +1,112 @@
+@startuml
+title Вариант 4. Общий сиквенс — аналитические задания спортивных клубов
+hide footbox
+skinparam defaultFontName Arial
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 65
+actor "Оператор" as User
+control "Simulation\nМодель" as Sim
+collections "EventCalendar\nКалендарь" as Cal
+participant "Source\nКлиент клуба" as Src
+control "PlacementDispatcher\nПриём заданий" as Put
+queue "RingBuffer\nКольцевой буфер" as Buf
+control "SelectionDispatcher\nПланировщик" as Sel
+participant "DevicePool\nПул обработчиков" as Pool
+participant "Device\nОбработчик j" as Dev
+entity "Statistics\nСтатистика" as Stat
+
+note over Sim, Stat
+ИБ: 3 независимых источника; ИЗ2: интервал a_i + (b_i-a_i)*U, U из [0,1).
+Приоритет И1 > И2 > И3. Все заявки проходят через буфер. K >= 1, M >= 1.
+УБ и УП изначально равны 1. Пакетов и прерывания обслуживания нет.
+end note
+User -> Sim: initialize(config, seed)
+loop Для каждого источника i = 1..3
+ Sim -> Src: nextGenerationTime(0)
+ Src --> Sim: tFirst по ИЗ2
+ Sim -> Cal: schedule(GENERATION, i, tFirst)
+ Cal --> Sim: событие добавлено
+end
+Sim --> User: модель инициализирована
+User -> Sim: run()
+loop Пока ближайшее событие имеет время <= H
+ Sim -> Cal: popNext()
+ Cal --> Sim: event
+ Sim -> Sim: now := event.time
+ note over Sim, Cal: При равном времени: COMPLETE перед GENERATION;\nзатем номер прибора/источника, затем event.sequence.
+ alt GENERATION — наступило время источника i
+  Sim -> Src: generate(now)
+  Src --> Sim: q: Request(i.k)
+  Sim -> Stat: recordGenerated(q)
+  Sim -> Src: nextGenerationTime(now)
+  Src --> Sim: tNext по ИЗ2
+  Sim -> Cal: schedule(GENERATION, i, tNext)
+  Cal --> Sim: событие добавлено
+  Sim -> Put: accept(q, now)
+  Put -> Buf: hasFreeSlot()
+  Buf --> Put: true / false
+  alt Есть свободное место — Д1ОЗ1
+   Put -> Buf: insertByRing(q, now)
+   Buf -> Buf: Поиск от УБ по кругу; запись в слот s\nq.markQueued(now, ++sequence)\nУБ := s mod K + 1
+   Buf --> Put: размещено
+  else Буфер полон; в устойчивом состоянии все приборы заняты
+   Put -> Buf: replaceLatest(q, now)
+   Buf -> Buf: Д1ОО4: victim := max(queueOrder) среди старых\nзаменить victim на q в том же слоте s\nq.markQueued(now, ++sequence); УБ := s mod K + 1
+   Buf --> Put: victim: Request
+   Put -> Put: victim.markEvicted(now)
+   Put -> Stat: recordEvicted(victim)
+   note right of Stat: Отказ источнику victim,\nновая q принята.
+  end
+  Put --> Sim: размещение завершено
+ else COMPLETE — обработчик j завершил обслуживание
+  Sim -> Pool: complete(j, now)
+  Pool -> Dev: complete(now)
+  Dev -> Dev: q.markCompleted(now)\ncurrent := null
+  Dev --> Pool: q: Request
+  Pool --> Sim: q: Request
+  Sim -> Stat: recordCompleted(q, j)
+ end
+
+ Sim -> Sel: dispatch(now)
+ note over Sim, Sel: Триггер — завершение приёма заявки либо освобождение прибора.
+ Sel -> Sel: continueDispatch := true
+ loop Пока continueDispatch == true
+  Sel -> Buf: isEmpty()
+  Buf --> Sel: true / false
+  alt Буфер пуст
+   Sel -> Sel: continueDispatch := false
+  else В буфере есть заявки
+   Sel -> Pool: findFreeByRing()
+   Pool -> Pool: Д2П2: обойти M приборов от УП\nбез изменения УП
+   Pool --> Sel: j / null
+   alt j == null — все приборы заняты
+    Sel -> Sel: continueDispatch := false\nзаявки остаются в буфере
+   else Найден свободный прибор
+    Sel -> Buf: popHighestPriority()
+    Buf -> Buf: Д2Б4: min(sourceId), затем max(queueOrder)\nосвободить слот; не сдвигать элементы; УБ прежний
+    Buf --> Sel: q: Request
+    Sel -> Pool: startOn(j, q, now)
+    Pool -> Dev: begin(q, now)
+    Dev -> Dev: q.markProcessing(now)\nПЗ1: duration := -ln(U)/mu_j, U из (0,1)
+    Dev --> Pool: finishAt := now + duration
+    Pool -> Pool: УП := j mod M + 1
+    Pool --> Sel: finishAt
+    Sel -> Stat: recordStarted(q, j)
+    Sel -> Cal: schedule(COMPLETE, j, finishAt)
+    Cal --> Sel: событие добавлено
+   end
+  end
+ end
+ Sel --> Sim: назначения завершены
+ Sim -> Sim: ОД1: показать календарь, буфер, источники,\nприборы, УБ/УП, статистику
+end
+Sim -> Sim: now := H; зафиксировать незавершённые заявки
+Sim -> Stat: snapshot(H)
+Stat --> Sim: показатели прогона
+Sim --> User: RunMetrics — показатели прогона для ОР2
+note over Sim, Stat
+HappyFlow: вставка в свободный буфер и назначение свободному прибору в тот же now.
+При занятых приборах диспетчер возвращает управление: календарь продолжает обрабатывать
+генерации (включая переполнение) и завершения. После COMPLETE выбирается одна заявка за итерацию.
+end note
+@enduml
