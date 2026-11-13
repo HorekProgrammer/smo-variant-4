@@ -1,112 +1,99 @@
 @startuml
-title Вариант 4. Общий сиквенс — аналитические задания спортивных клубов
+title Вариант 4. Общая последовательность работы системы
 hide footbox
 skinparam defaultFontName Arial
 skinparam sequenceMessageAlign center
-skinparam maxMessageSize 65
+skinparam maxMessageSize 90
+
 actor "Оператор" as User
-control "Simulation\nМодель" as Sim
-collections "EventCalendar\nКалендарь" as Cal
-participant "Source\nКлиент клуба" as Src
-control "PlacementDispatcher\nПриём заданий" as Put
-queue "RingBuffer\nКольцевой буфер" as Buf
-control "SelectionDispatcher\nПланировщик" as Sel
-participant "DevicePool\nПул обработчиков" as Pool
-participant "Device\nОбработчик j" as Dev
-entity "Statistics\nСтатистика" as Stat
+participant "Клиенты\nспортивных клубов" as Src
+control "Модель" as Sim
+control "Диспетчер\nприёма" as Put
+queue "Кольцевой\nбуфер" as Buf
+control "Планировщик" as Sel
+participant "Серверный\nобработчик" as Dev
+entity "Статистика" as Stat
 
-note over Sim, Stat
-ИБ: 3 независимых источника; ИЗ2: интервал a_i + (b_i-a_i)*U, U из [0,1).
-Приоритет И1 > И2 > И3. Все заявки проходят через буфер. K >= 1, M >= 1.
-УБ и УП изначально равны 1. Пакетов и прерывания обслуживания нет.
+note over Src, Stat
+Три клуба независимо отправляют аналитические задания.
+Приоритет клубов: И1 выше И2, И2 выше И3.
+Каждое задание сначала попадает в общий буфер.
 end note
-User -> Sim: initialize(config, seed)
-loop Для каждого источника i = 1..3
- Sim -> Src: nextGenerationTime(0)
- Src --> Sim: tFirst по ИЗ2
- Sim -> Cal: schedule(GENERATION, i, tFirst)
- Cal --> Sim: событие добавлено
-end
-Sim --> User: модель инициализирована
-User -> Sim: run()
-loop Пока ближайшее событие имеет время <= H
- Sim -> Cal: popNext()
- Cal --> Sim: event
- Sim -> Sim: now := event.time
- note over Sim, Cal: При равном времени: COMPLETE перед GENERATION;\nзатем номер прибора/источника, затем event.sequence.
- alt GENERATION — наступило время источника i
-  Sim -> Src: generate(now)
-  Src --> Sim: q: Request(i.k)
-  Sim -> Stat: recordGenerated(q)
-  Sim -> Src: nextGenerationTime(now)
-  Src --> Sim: tNext по ИЗ2
-  Sim -> Cal: schedule(GENERATION, i, tNext)
-  Cal --> Sim: событие добавлено
-  Sim -> Put: accept(q, now)
-  Put -> Buf: hasFreeSlot()
-  Buf --> Put: true / false
-  alt Есть свободное место — Д1ОЗ1
-   Put -> Buf: insertByRing(q, now)
-   Buf -> Buf: Поиск от УБ по кругу; запись в слот s\nq.markQueued(now, ++sequence)\nУБ := s mod K + 1
-   Buf --> Put: размещено
-  else Буфер полон; в устойчивом состоянии все приборы заняты
-   Put -> Buf: replaceLatest(q, now)
-   Buf -> Buf: Д1ОО4: victim := max(queueOrder) среди старых\nзаменить victim на q в том же слоте s\nq.markQueued(now, ++sequence); УБ := s mod K + 1
-   Buf --> Put: victim: Request
-   Put -> Put: victim.markEvicted(now)
-   Put -> Stat: recordEvicted(victim)
-   note right of Stat: Отказ источнику victim,\nновая q принята.
-  end
-  Put --> Sim: размещение завершено
- else COMPLETE — обработчик j завершил обслуживание
-  Sim -> Pool: complete(j, now)
-  Pool -> Dev: complete(now)
-  Dev -> Dev: q.markCompleted(now)\ncurrent := null
-  Dev --> Pool: q: Request
-  Pool --> Sim: q: Request
-  Sim -> Stat: recordCompleted(q, j)
- end
 
- Sim -> Sel: dispatch(now)
- note over Sim, Sel: Триггер — завершение приёма заявки либо освобождение прибора.
- Sel -> Sel: continueDispatch := true
- loop Пока continueDispatch == true
-  Sel -> Buf: isEmpty()
-  Buf --> Sel: true / false
-  alt Буфер пуст
-   Sel -> Sel: continueDispatch := false
-  else В буфере есть заявки
-   Sel -> Pool: findFreeByRing()
-   Pool -> Pool: Д2П2: обойти M приборов от УП\nбез изменения УП
-   Pool --> Sel: j / null
-   alt j == null — все приборы заняты
-    Sel -> Sel: continueDispatch := false\nзаявки остаются в буфере
-   else Найден свободный прибор
-    Sel -> Buf: popHighestPriority()
-    Buf -> Buf: Д2Б4: min(sourceId), затем max(queueOrder)\nосвободить слот; не сдвигать элементы; УБ прежний
-    Buf --> Sel: q: Request
-    Sel -> Pool: startOn(j, q, now)
-    Pool -> Dev: begin(q, now)
-    Dev -> Dev: q.markProcessing(now)\nПЗ1: duration := -ln(U)/mu_j, U из (0,1)
-    Dev --> Pool: finishAt := now + duration
-    Pool -> Pool: УП := j mod M + 1
-    Pool --> Sel: finishAt
-    Sel -> Stat: recordStarted(q, j)
-    Sel -> Cal: schedule(COMPLETE, j, finishAt)
-    Cal --> Sel: событие добавлено
-   end
-  end
- end
- Sel --> Sim: назначения завершены
- Sim -> Sim: ОД1: показать календарь, буфер, источники,\nприборы, УБ/УП, статистику
+User -> Sim: Запустить моделирование
+Sim --> User: Система готова к работе
+
+== Поступление нового задания ==
+
+Src -> Sim: Отправить новое аналитическое задание
+Sim -> Stat: Учесть поступившее задание
+Sim -> Src: Запланировать следующее поступление
+Sim -> Put: Передать задание на приём
+Put -> Buf: Проверить свободное место
+
+alt В буфере есть свободное место
+    Put -> Buf: Поставить задание в свободную ячейку
+    note right of Buf
+      Свободная ячейка ищется по кругу
+      от указателя постановки УБ.
+    end note
+    Buf --> Put: Задание принято
+else Буфер заполнен
+    Put -> Buf: Заменить последнее принятое задание новым
+    Buf --> Put: Вернуть вытесненное задание
+    Put -> Stat: Учесть отказ вытесненному заданию
+    note right of Put
+      При переполнении новая заявка остаётся,
+      а последняя из ранее принятых удаляется.
+    end note
 end
-Sim -> Sim: now := H; зафиксировать незавершённые заявки
-Sim -> Stat: snapshot(H)
-Stat --> Sim: показатели прогона
-Sim --> User: RunMetrics — показатели прогона для ОР2
+
+== Передача задания на обработку ==
+
+Put -> Sel: Сообщить о принятом задании
+Sel -> Dev: Найти свободный обработчик по кругу
+
+alt Свободный обработчик найден
+    Sel -> Buf: Выбрать задание с наивысшим приоритетом
+    note right of Buf
+      Сначала выбирается клуб И1, затем И2 и И3.
+      Среди заданий одного клуба берётся последнее.
+    end note
+    Buf --> Sel: Передать выбранное задание
+    Sel -> Dev: Начать обработку задания
+    Sel -> Stat: Учесть начало обработки
+    Dev -> Dev: Рассчитать показатели и подготовить отчёт
+    note right of Dev
+      Время обработки случайное.
+      Один обработчик выполняет одно задание.
+    end note
+else Все обработчики заняты
+    Sel --> Buf: Оставить задания ждать в буфере
+end
+
+== Завершение обработки ==
+
+Dev -> Sim: Сообщить о готовом отчёте
+Sim -> Stat: Учесть выполненное задание
+Sim -> Sel: Проверить ожидающие задания
+
+alt В буфере есть задания
+    Sel -> Buf: Взять следующее задание по приоритету
+    Buf --> Sel: Передать выбранное задание
+    Sel -> Dev: Назначить его освободившемуся обработчику
+else Буфер пуст
+    Sel --> Dev: Оставить обработчик свободным
+end
+
+== Окончание моделирования ==
+
+User -> Sim: Завершить прогон в заданный момент
+Sim -> Stat: Сформировать итоговые показатели
+Stat --> Sim: Отказы, ожидание и загрузка обработчиков
+Sim --> User: Показать результаты моделирования
+
 note over Sim, Stat
-HappyFlow: вставка в свободный буфер и назначение свободному прибору в тот же now.
-При занятых приборах диспетчер возвращает управление: календарь продолжает обрабатывать
-генерации (включая переполнение) и завершения. После COMPLETE выбирается одна заявка за итерацию.
+Обслуживание не прерывается, пакетной обработки нет.
+Состояние буфера, обработчиков и статистики можно смотреть после каждого события.
 end note
 @enduml

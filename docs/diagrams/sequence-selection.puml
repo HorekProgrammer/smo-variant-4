@@ -1,56 +1,61 @@
 @startuml
-title Вариант 4. Д2Б4 и Д2П2 — приоритет и кольцевой выбор
+title Вариант 4. Выбор задания и обработчика
 hide footbox
 skinparam defaultFontName Arial
-skinparam maxMessageSize 65
-control "Simulation" as Sim
-control "SelectionDispatcher" as Sel
-queue "RingBuffer (K=4)" as Buf
-participant "DevicePool (M=3)" as Pool
-participant "Device П1" as Dev
-collections "EventCalendar" as Cal
-entity "Statistics" as Stat
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 90
+
+control "Модель" as Sim
+control "Планировщик" as Sel
+queue "Кольцевой\nбуфер" as Buf
+participant "Пул\nобработчиков" as Pool
+participant "Выбранный\nобработчик" as Dev
+entity "Статистика" as Stat
+
 note over Sim, Stat
-Синтетический снимок для изолированной проверки dispatch(t):
-П1 и П3 свободны, П2 занят; УП=2.
-Буфер: [2.1(order=1), 1.1(order=2), 3.1(order=3), 1.2(order=4)]; УБ=1.
-Тестовый вызов: Simulation запускает dispatch(t) на заданном снимке.
-Это не устойчивое состояние обычного прогона: при очереди свободных приборов не остаётся.
-В обычном прогоне триггер — завершение приёма заявки либо освобождение прибора.
+В буфере: 2.1, 1.1, 3.1 и 1.2.
+Обработчики П1 и П3 свободны, П2 занят.
+Кольцевой поиск начинается с П2.
 end note
-Sim -> Sel: dispatch(t)
-Sel -> Buf: isEmpty()
-Buf --> Sel: false
-Sel -> Pool: findFreeByRing()
-Pool -> Pool: Д2П2: П2 занят; П3 свободен\nнайти П3; УП пока равен 2
-Pool --> Sel: П3
-Sel -> Buf: popHighestPriority()
-Buf -> Buf: Д2Б4: И1 имеет высший приоритет\nиз 1.1 и 1.2 выбрать последнюю 1.2\nосвободить слот 4; УБ прежний
-Buf --> Sel: q = 1.2
-Sel -> Pool: startOn(П3,1.2,t)
-ref over Pool: Device П3.begin(1.2,t): ПЗ1; markProcessing(t)
-Pool --> Sel: finishAt3; УП := 1
-Sel -> Stat: recordStarted(1.2,П3)
-Sel -> Cal: schedule(COMPLETE,П3,finishAt3)
-Cal --> Sel: добавлено
-== Следующая итерация в тот же момент t ==
-Sel -> Buf: isEmpty()
-Buf --> Sel: false
-Sel -> Pool: findFreeByRing()
-Pool --> Sel: П1 (поиск от УП=1)
-Sel -> Buf: popHighestPriority()
-Buf --> Sel: q = 1.1; слот 2 освобождён; УБ=1
-Sel -> Pool: startOn(П1,1.1,t)
-Pool -> Dev: begin(1.1,t)
-Dev --> Pool: finishAt1 по ПЗ1
-Pool --> Sel: finishAt1; УП := 2
-Sel -> Stat: recordStarted(1.1,П1)
-Sel -> Cal: schedule(COMPLETE,П1,finishAt1)
-Cal --> Sel: добавлено
-Sel -> Buf: isEmpty()
-Buf --> Sel: false
-Sel -> Pool: findFreeByRing()
-Pool --> Sel: null — все приборы заняты; УП=2
-Sel --> Sim: назначения завершены
-note over Buf, Pool: Итог: [2.1, пусто, 3.1, пусто]. По одной заявке за итерацию, без пакета.\nПри свободных П1 и П3 сначала выбран П3: кольцо имеет приоритет над номером прибора.
+
+== Первое назначение ==
+
+Sim -> Sel: Запустить назначение заданий
+Sel -> Pool: Найти свободный обработчик по кругу
+Pool -> Pool: Пропустить занятый П2 и проверить П3
+Pool --> Sel: Обработчик П3 свободен
+Sel -> Buf: Выбрать задание с наивысшим приоритетом
+Buf --> Sel: Передать последнее задание клуба И1 — 1.2
+
+note over Buf
+  Сначала выбирается клуб с наивысшим приоритетом.
+  Среди заданий одного клуба берётся последнее принятое.
+end note
+
+Sel -> Dev: Передать задание 1.2 обработчику П3
+Sel -> Stat: Учесть начало обработки
+Pool -> Pool: Продолжить следующий поиск с П1
+
+== Второе назначение в тот же момент ==
+
+Sel -> Pool: Найти ещё один свободный обработчик
+Pool --> Sel: Обработчик П1 свободен
+Sel -> Buf: Выбрать следующее приоритетное задание
+Buf --> Sel: Передать оставшееся задание клуба И1 — 1.1
+Sel -> Dev: Передать задание 1.1 обработчику П1
+Sel -> Stat: Учесть начало обработки
+Pool -> Pool: Продолжить следующий поиск с П2
+
+== Проверка возможности продолжить ==
+
+Sel -> Pool: Найти ещё один свободный обработчик
+Pool --> Sel: Все обработчики заняты
+Sel --> Buf: Оставить задания 2.1 и 3.1 ждать
+Sel --> Sim: Завершить назначение
+
+note over Buf, Pool
+Сначала выбран П3, а не П1, потому что поиск идёт по кольцу от П2.
+Сначала выбраны оба задания И1, потому что этот клуб имеет высший приоритет.
+Пакетной обработки нет: каждое задание назначается отдельно.
+end note
 @enduml
