@@ -1,0 +1,24 @@
+@startuml
+title Обработка события — вариант 4
+actor Пользователь
+participant Model
+participant Source
+participant PlacementDispatcher as DP
+participant RingBuffer as Buffer
+participant SelectionDispatcher as DV
+participant Device
+Пользователь -> Model : step()
+alt генерация
+  Model -> Source : generate_request(t)
+  Source --> Model : request
+  Model -> DP : accept_request(request,t)
+  DP -> Buffer : put_request / replace_latest
+else завершение
+  Model -> Device : finish_processing(t)
+end
+Model -> DV : assign_next(t)
+DV -> Buffer : pop_highest_priority()
+DV -> Device : start_processing(request,t)
+Model --> Пользователь : состояние ОД1
+@enduml
+

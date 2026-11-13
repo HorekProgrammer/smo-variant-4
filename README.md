@@ -67,3 +67,23 @@ python tools/build_artifacts.py --plantuml-jar C:\tools\plantuml.jar
 Скрипт проверяет синтаксис, создаёт SVG/PNG, HTML-галерею и Word-документ. Исходные пользовательские DOCX не изменяются. Публикация и команды Git в сборке отсутствуют.
 
 PDF и DOCX используются как локальные копии для просмотра и защиты и исключены из Git через `.gitignore`. В репозитории публикуются Markdown, исходники PlantUML и изображения диаграмм.
+
+## Запуск программы
+
+Программа для варианта 4 находится в `src` и повторяет структуру эталонного проекта: общие сущности и диспетчеры вынесены в `src/common`, пошаговый режим ОД1 — в `src/step_by_step`, исходники диаграмм — в `src/diagrams`.
+
+```powershell
+python src/step_by_step/main.py
+```
+
+Для автоматического просмотра заданного числа событий:
+
+```powershell
+python src/step_by_step/main.py --auto --steps 20 --seed 4
+```
+
+Проверка правил варианта:
+
+```powershell
+python -m unittest discover -s tests -v
+```

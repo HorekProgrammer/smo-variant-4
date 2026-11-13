@@ -1,0 +1,21 @@
+@startuml
+title СМО — вариант 4
+class Source
+class Request
+class RingBuffer
+class PlacementDispatcher
+class SelectionDispatcher
+class Device
+class Model
+Source --> Request : создаёт (ИБ, ИЗ2)
+Model *-- Source
+Model *-- RingBuffer
+Model *-- Device
+Model *-- PlacementDispatcher
+Model *-- SelectionDispatcher
+PlacementDispatcher --> RingBuffer : Д1ОЗ1, Д1ОО4
+SelectionDispatcher --> RingBuffer : Д2Б4
+SelectionDispatcher --> Device : Д2П2
+Device --> Request : обслуживает (ПЗ1)
+@enduml
+
